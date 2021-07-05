@@ -91,9 +91,37 @@ func syncIDPs(c *client.APIClient) error {
 }
 
 func syncRoleBindings(c *client.APIClient) error {
-	var clusters []license.AddClusterRequest
-	if err := loadYAML(enterpriseClustersPath, &clusters); err != nil {
+	var roleBinding map[string][]string
+	if err := loadYAML(clusterRoleBindingsPath, &roleBinding); err != nil {
 		return err
+	}
+
+	existing, err := c.GetRoleBinding(c.Ctx(), &auth.GetRoleBindingRequest{
+		Resource: &auth.Resource{Type: auth.ResourceType_CLUSTER},
+	})
+	if err != nil {
+		return err
+	}
+
+	for p := range existing.Binding.Entries {
+		if _, ok := roleBinding[p]; !ok {
+			if _, err := c.ModifyRoleBinding(c.Ctx(), &auth.ModifyRoleBindingRequest{
+				Resource:  &auth.Resource{Type: auth.ResourceType_CLUSTER},
+				Principal: p,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	for p, r := range roleBinding {
+		if _, err := c.ModifyRoleBinding(c.Ctx(), &auth.ModifyRoleBindingRequest{
+			Resource:  &auth.Resource{Type: auth.ResourceType_CLUSTER},
+			Principal: p,
+			Roles:     r,
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -109,12 +137,12 @@ func configureEnterprise(c *client.APIClient) error {
 	return err
 }
 func configureAuth(c *client.APIClient) error {
-	var config enterprise.ActivateRequest
-	if err := loadYAML(enterpriseConfigPath, &config); err != nil {
+	var config auth.OIDCConfig
+	if err := loadYAML(authConfigPath, &config); err != nil {
 		return err
 	}
 
-	_, err := c.Enterprise.Activate(c.Ctx(), &config)
+	_, err := c.SetConfiguration(c.Ctx(), &auth.SetConfigurationRequest{Configuration: &config})
 	return err
 }
 

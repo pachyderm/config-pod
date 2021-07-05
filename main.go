@@ -22,6 +22,7 @@ const (
 	identityServiceConfigPath = "identityServiceConfig"
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
+	authConfigPath            = "authConfig"
 )
 
 type clusterSyncFn func(*client.APIClient) error
