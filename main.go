@@ -7,13 +7,10 @@ import (
 	"github.com/pachyderm/pachyderm/v2/src/client"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 const (
-	// configRoot is the path to mount the config secret to
-	configRoot = "/pachConfig"
-
+	// These are the keys for the config secret
 	rootTokenPath             = "rootToken"
 	licensePath               = "license"
 	enterpriseClustersPath    = "enterpriseClusters"
@@ -44,28 +41,35 @@ var syncSteps = []syncStep{
 	syncStep{"sync cluster role bindings", syncRoleBindings},
 }
 
+var (
+	configRoot string
+	pachAddr   string
+)
+
 func main() {
-	rootCmd := &cobra.Command{
-		Use:   "configure",
-		Short: "Configure a Pachyderm cluster by syncing with a k8s secret",
-		RunE:  run,
+	configRoot = os.Getenv("PACH_CONFIG_ROOT")
+	if configRoot == "" {
+		configRoot = "/pachConfig"
 	}
-	if err := rootCmd.Execute(); err != nil {
-		log.WithError(err).Errorf("failed to sync")
+
+	pachAddr = os.Getenv("PACH_ADDR")
+	if pachAddr == "" {
+		pachAddr = "grpc://pachd:1658"
+	}
+
+	log.WithField("addr", pachAddr).Infof("connecting to pachyderm")
+	c, err := client.NewFromURI(pachAddr)
+	if err != nil {
+		log.WithError(err).Error("failed to connect to pachyderm")
 		os.Exit(1)
 	}
-}
 
-func run(cmd *cobra.Command, args []string) error {
-	c, err := client.NewFromURI("grpc://pachd:1658")
-	if err != nil {
-		return err
-	}
-
+	log.Infof("loading root auth token")
 	rootToken, err := loadRootToken()
 	if err != nil {
 		if !errors.Is(err, errSkipped{}) {
-			return err
+			log.WithError(err).Error("failed to load root auth token")
+			os.Exit(1)
 		}
 		log.WithField("reason", err).Info("not using auth token")
 	} else {
@@ -79,10 +83,9 @@ func run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			if !errors.Is(err, errSkipped{}) {
 				stepLogger.WithError(err).Error("error syncing cluster state")
-				return err
+				os.Exit(1)
 			}
 			stepLogger.WithField("reason", err).Info("skipped")
 		}
 	}
-	return nil
 }
