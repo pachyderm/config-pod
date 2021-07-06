@@ -20,10 +20,11 @@ func (e errSkipped) Error() string {
 // skipIfNotExist loads the contents of a config file, or returns
 // an errSkipped if the file doesn't exist.
 func skipIfNotExist(path string) ([]byte, error) {
-	data, err := ioutil.ReadFile(filepath.Join(configRoot, path))
+	fullPath := filepath.Join(configRoot, path)
+	data, err := ioutil.ReadFile(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, errSkipped{fmt.Sprintf("no file %q", path)}
+			return nil, errSkipped{fmt.Sprintf("no file %q", fullPath)}
 		}
 		return nil, err
 	}

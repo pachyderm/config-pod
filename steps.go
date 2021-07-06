@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/pachyderm/pachyderm/v2/src/auth"
 	"github.com/pachyderm/pachyderm/v2/src/client"
 	"github.com/pachyderm/pachyderm/v2/src/enterprise"
@@ -104,6 +106,11 @@ func syncRoleBindings(c *client.APIClient) error {
 	}
 
 	for p := range existing.Binding.Entries {
+		// `pach:` user role bindings cannot be modified
+		if strings.HasPrefix(p, auth.PachPrefix) {
+			continue
+		}
+
 		if _, ok := roleBinding[p]; !ok {
 			if _, err := c.ModifyRoleBinding(c.Ctx(), &auth.ModifyRoleBindingRequest{
 				Resource:  &auth.Resource{Type: auth.ResourceType_CLUSTER},

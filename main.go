@@ -20,6 +20,7 @@ const (
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
 	authConfigPath            = "authConfig"
+	simpleAuth                = "simpleAuth"
 )
 
 type clusterSyncFn func(*client.APIClient) error

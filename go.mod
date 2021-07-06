@@ -10,7 +10,8 @@ require (
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/pachyderm/pachyderm/v2 v2.0.0-proxy.1
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/cobra v1.0.0
+	github.com/spf13/cobra v1.0.0 // indirect
+	github.com/stretchr/testify v1.7.0
 	go.opencensus.io v0.22.5 // indirect
 	go.uber.org/zap v1.17.0 // indirect
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
