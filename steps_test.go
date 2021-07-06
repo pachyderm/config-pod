@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/fs"
 	"io/ioutil"
 	"os"
 	"path"
@@ -25,7 +24,7 @@ type StepTestSuite struct {
 }
 
 func (s *StepTestSuite) writeFile(filename string, data []byte) {
-	s.Require().NoError(os.WriteFile(path.Join(configRoot, filename), data, fs.ModePerm))
+	s.Require().NoError(ioutil.WriteFile(path.Join(configRoot, filename), data, os.ModePerm))
 }
 
 func (s *StepTestSuite) writeYAML(filename string, data interface{}) {
