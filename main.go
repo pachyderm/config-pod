@@ -55,7 +55,7 @@ func main() {
 
 	pachAddr = os.Getenv("PACH_ADDR")
 	if pachAddr == "" {
-		pachAddr = "grpc://pachd:1658"
+		pachAddr = "grpc://pachd-peer:30653"
 	}
 
 	log.WithField("addr", pachAddr).Infof("connecting to pachyderm")
