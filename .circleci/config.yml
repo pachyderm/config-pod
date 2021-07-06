@@ -1,0 +1,23 @@
+version: 2.1
+
+jobs:
+  test:
+    parameters:
+    resource_class: large
+    machine:
+      image: ubuntu-2004:202101-01
+    steps:
+      - checkout
+      - run: etc/testing/circle/install.sh
+      - run: etc/testing/circle/start-minikube.sh
+      - run: etc/testing/circle/deploy-pachyderm.sh
+      - run: etc/testing/circle/test.sh
+      - run:
+         name: Dump debugging info in case of failure
+         when: on_fail
+         command: etc/testing/circle/kube_debug.sh
+
+workflows:
+  circleci:
+    jobs:
+      - test
