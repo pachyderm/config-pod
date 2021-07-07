@@ -13,6 +13,7 @@ const (
 	// These are the keys for the config secret
 	rootTokenPath             = "rootToken"
 	licensePath               = "license"
+	enterpriseSecretPath      = "enterpriseSecret"
 	enterpriseClustersPath    = "enterpriseClusters"
 	enterpriseConfigPath      = "enterpriseConfig"
 	clusterRoleBindingsPath   = "clusterRoleBindings"
@@ -20,7 +21,6 @@ const (
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
 	authConfigPath            = "authConfig"
-	simpleConfigPath          = "simpleConfig"
 )
 
 type clusterSyncFn func(*client.APIClient) error
@@ -32,6 +32,7 @@ type syncStep struct {
 
 var syncSteps = []syncStep{
 	syncStep{"license key", licenseStep},
+	syncStep{"enterprise secret", enterpriseSecretStep},
 	syncStep{"sync enterprise clusters", enterpriseClustersStep},
 	syncStep{"configure enterprise service", enterpriseConfigStep},
 	syncStep{"activate authentication", activateAuthStep},

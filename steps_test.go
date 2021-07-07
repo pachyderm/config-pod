@@ -20,18 +20,6 @@ import (
 var (
 	testRootToken = "testroottoken"
 
-	localhostEnterpriseCluster = license.AddClusterRequest{
-		Id:      "localhost",
-		Secret:  "secret",
-		Address: "localhost:1650",
-	}
-
-	localhostEnterpriseConfig = enterprise.ActivateRequest{
-		LicenseServer: "localhost:1650",
-		Id:            "localhost",
-		Secret:        "secret",
-	}
-
 	oidcConfig = auth.OIDCConfig{
 		Issuer:          "http://localhost:30658/",
 		ClientID:        "oidcsecret",
@@ -53,6 +41,13 @@ var (
 		Id:         "test",
 		Type:       "mockPassword",
 		JsonConfig: `{"username": "admin", "password": "password"}`,
+	}
+
+	externalEnterpriseCluster = license.AddClusterRequest{
+		Id:          "external",
+		Address:     "grpc://localhost:1653",
+		UserAddress: "grpc://localhost:1653",
+		Secret:      "externalSecret",
 	}
 )
 
@@ -90,6 +85,8 @@ func (s *StepTestSuite) SetupTest() {
 	s.Require().NoError(err)
 }
 
+// writeSingleNodeConfig writes out the config files for
+// a single enterprise-licensed pachd with auth enaabled
 func (s *StepTestSuite) writeSingleNodeConfig() {
 	// write out an enterprise token
 	s.writeFile(licensePath, []byte(os.Getenv("ENT_ACT_CODE")))
@@ -97,11 +94,8 @@ func (s *StepTestSuite) writeSingleNodeConfig() {
 	// write out the root token
 	s.writeFile(rootTokenPath, []byte(testRootToken))
 
-	// create a single enterprise cluster
-	s.writeYAML(enterpriseClustersPath, []license.AddClusterRequest{localhostEnterpriseCluster})
-
-	// register the enterprise cluster
-	s.writeYAML(enterpriseConfigPath, localhostEnterpriseConfig)
+	// configure enterprise secret
+	s.writeFile(enterpriseSecretPath, []byte("enterpriseSecret"))
 
 	// configure the identity service
 	s.writeYAML(identityServiceConfigPath, identity.IdentityServerConfig{
@@ -128,7 +122,7 @@ func (s *StepTestSuite) TestConfigureSingleNodeAuth() {
 	s.writeSingleNodeConfig()
 
 	for _, step := range syncSteps {
-		s.Require().NoError(step.fn(s.c))
+		step.fn(s.c)
 	}
 
 	// check that we're authenticated as the root user and auth is active
@@ -171,7 +165,7 @@ func (s *StepTestSuite) TestUpdateState() {
 	// write the initial config and apply it
 	s.writeSingleNodeConfig()
 	for _, step := range syncSteps {
-		s.Require().NoError(step.fn(s.c))
+		step.fn(s.c)
 	}
 
 	// update the config and re-apply it
@@ -202,7 +196,7 @@ func (s *StepTestSuite) TestUpdateState() {
 	})
 
 	for _, step := range syncSteps {
-		s.Require().NoError(step.fn(s.c))
+		step.fn(s.c)
 	}
 
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
@@ -232,7 +226,7 @@ func (s *StepTestSuite) TestUpdateState() {
 
 	// Run again, no changes, should be idempotent
 	for _, step := range syncSteps {
-		s.Require().NoError(step.fn(s.c))
+		step.fn(s.c)
 	}
 
 	clients, err = s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
@@ -257,4 +251,47 @@ func (s *StepTestSuite) TestUpdateState() {
 		"pach:root": &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
 		"robot:new": &auth.Roles{Roles: map[string]bool{"repoWriter": true}},
 	}, roleBinding.Binding.Entries)
+}
+
+// TestEnterpriseConfig tests configuring a pachd to talk to an external enterprise server
+func (s *StepTestSuite) TestEnterpriseConfig() {
+	s.writeFile(licensePath, []byte(os.Getenv("ENT_ACT_CODE")))
+	s.writeYAML(enterpriseClustersPath, []license.AddClusterRequest{externalEnterpriseCluster})
+	s.writeYAML(enterpriseConfigPath, enterprise.ActivateRequest{
+		Id:            "external",
+		LicenseServer: "grpc://localhost:1653",
+		Secret:        "externalSecret",
+	})
+
+	for _, step := range syncSteps {
+		step.fn(s.c)
+	}
+
+	clusters, err := s.c.License.ListClusters(s.c.Ctx(), &license.ListClustersRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(1, len(clusters.Clusters))
+
+	state, err := s.c.Enterprise.GetState(s.c.Ctx(), &enterprise.GetStateRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(enterprise.State_ACTIVE, state.State)
+
+	updatedCluster := externalEnterpriseCluster
+	updatedCluster.Address = "grpc://localhost:1650"
+
+	newCluster := license.AddClusterRequest{
+		Id:          "external2",
+		Address:     "grpc://localhost:1653",
+		UserAddress: "grpc://external2:1653",
+		Secret:      "externalSecret2",
+	}
+	s.writeYAML(enterpriseClustersPath, []license.AddClusterRequest{updatedCluster, newCluster})
+	for _, step := range syncSteps {
+		step.fn(s.c)
+	}
+
+	clusters, err = s.c.License.ListClusters(s.c.Ctx(), &license.ListClustersRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(2, len(clusters.Clusters))
+	s.Require().Equal("grpc://localhost:1653", clusters.Clusters[0].Address)
+	s.Require().Equal("grpc://localhost:1650", clusters.Clusters[1].Address)
 }

@@ -14,6 +14,28 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
+const (
+	localhostEnterpriseClusterId = "localhost"
+)
+
+func localhostEnterpriseCluster(secret string) license.AddClusterRequest {
+	return license.AddClusterRequest{
+		Id:               localhostEnterpriseClusterId,
+		Address:          "grpc://localhost:1653",
+		UserAddress:      "grpc://localhost:1653",
+		Secret:           secret,
+		EnterpriseServer: true,
+	}
+}
+
+func localhostEnterpriseConfig(secret string) enterprise.ActivateRequest {
+	return enterprise.ActivateRequest{
+		Id:            localhostEnterpriseClusterId,
+		LicenseServer: "grpc://localhost:1653",
+		Secret:        secret,
+	}
+}
+
 func licenseStep(c *client.APIClient) error {
 	key, err := skipIfNotExist(licensePath)
 	if err != nil {
@@ -23,6 +45,24 @@ func licenseStep(c *client.APIClient) error {
 	_, err = c.License.Activate(c.Ctx(), &license.ActivateRequest{
 		ActivationCode: string(key),
 	})
+	return err
+}
+
+func enterpriseSecretStep(c *client.APIClient) error {
+	secret, err := skipIfNotExist(enterpriseSecretPath)
+	if err != nil {
+		return err
+	}
+
+	cluster := localhostEnterpriseCluster(string(secret))
+	if _, err := c.License.AddCluster(c.Ctx(), &cluster); err != nil {
+		if !license.IsErrDuplicateClusterID(err) {
+			return err
+		}
+	}
+
+	config := localhostEnterpriseConfig(string(secret))
+	_, err = c.Enterprise.Activate(c.Ctx(), &config)
 	return err
 }
 
