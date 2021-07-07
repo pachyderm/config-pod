@@ -14,7 +14,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-func syncLicense(c *client.APIClient) error {
+func licenseStep(c *client.APIClient) error {
 	key, err := skipIfNotExist(licensePath)
 	if err != nil {
 		return err
@@ -26,12 +26,7 @@ func syncLicense(c *client.APIClient) error {
 	return err
 }
 
-func syncEnterpriseClusters(c *client.APIClient) error {
-	var clusters []license.AddClusterRequest
-	if err := loadYAML(enterpriseClustersPath, &clusters); err != nil {
-		return err
-	}
-
+func syncEnterpriseClusters(c *client.APIClient, clusters []license.AddClusterRequest) error {
 	for _, cluster := range clusters {
 		if _, err := c.License.AddCluster(c.Ctx(), &cluster); err != nil {
 			if !license.IsErrDuplicateClusterID(err) {
@@ -52,12 +47,16 @@ func syncEnterpriseClusters(c *client.APIClient) error {
 	return nil
 }
 
-func syncOIDCClients(c *client.APIClient) error {
-	var clients []identity.OIDCClient
-	if err := loadYAML(oidcClientsPath, &clients); err != nil {
+func enterpriseClustersStep(c *client.APIClient) error {
+	var clusters []license.AddClusterRequest
+	if err := loadYAML(enterpriseClustersPath, &clusters); err != nil {
 		return err
 	}
 
+	return syncEnterpriseClusters(c, clusters)
+}
+
+func syncOIDCClients(c *client.APIClient, clients []identity.OIDCClient) error {
 	for _, client := range clients {
 		if _, err := c.CreateOIDCClient(c.Ctx(), &identity.CreateOIDCClientRequest{Client: &client}); err != nil {
 			if !identity.IsErrAlreadyExists(err) {
@@ -73,13 +72,25 @@ func syncOIDCClients(c *client.APIClient) error {
 	return nil
 }
 
+func oidcClientsStep(c *client.APIClient) error {
+	var clients []identity.OIDCClient
+	if err := loadYAML(oidcClientsPath, &clients); err != nil {
+		return err
+	}
+
+	return syncOIDCClients(c, clients)
+}
+
 func updateOrCreateIDP(c *client.APIClient, connector identity.IDPConnector, existing []*identity.IDPConnector) error {
 	for _, ex := range existing {
 		// If the connector config hasn't changed, don't update it
 		if ex.Id == connector.Id {
+			connector.ConfigVersion = ex.ConfigVersion
 			if proto.Equal(ex, &connector) {
 				return nil
 			}
+
+			// If we are updating the connector, increment the version
 			connector.ConfigVersion = ex.ConfigVersion + 1
 			_, err := c.UpdateIDPConnector(c.Ctx(), &identity.UpdateIDPConnectorRequest{Connector: &connector})
 			return err
@@ -90,7 +101,7 @@ func updateOrCreateIDP(c *client.APIClient, connector identity.IDPConnector, exi
 	return err
 }
 
-func syncIDPs(c *client.APIClient) error {
+func idpsStep(c *client.APIClient) error {
 	var connectors []identity.IDPConnector
 	if err := loadYAML(idpsPath, &connectors); err != nil {
 		return err
@@ -110,7 +121,7 @@ func syncIDPs(c *client.APIClient) error {
 	return nil
 }
 
-func syncRoleBindings(c *client.APIClient) error {
+func roleBindingsStep(c *client.APIClient) error {
 	var roleBinding map[string][]string
 	if err := loadYAML(clusterRoleBindingsPath, &roleBinding); err != nil {
 		return err
@@ -152,7 +163,7 @@ func syncRoleBindings(c *client.APIClient) error {
 	return nil
 }
 
-func configureEnterprise(c *client.APIClient) error {
+func enterpriseConfigStep(c *client.APIClient) error {
 	var config enterprise.ActivateRequest
 	if err := loadYAML(enterpriseConfigPath, &config); err != nil {
 		return err
@@ -161,7 +172,8 @@ func configureEnterprise(c *client.APIClient) error {
 	_, err := c.Enterprise.Activate(c.Ctx(), &config)
 	return err
 }
-func configureAuth(c *client.APIClient) error {
+
+func authConfigStep(c *client.APIClient) error {
 	var config auth.OIDCConfig
 	if err := loadYAML(authConfigPath, &config); err != nil {
 		return err
@@ -171,7 +183,7 @@ func configureAuth(c *client.APIClient) error {
 	return err
 }
 
-func activateAuth(c *client.APIClient) error {
+func activateAuthStep(c *client.APIClient) error {
 	rootToken, err := loadRootToken()
 	if err != nil {
 		return err
@@ -200,7 +212,7 @@ func activateAuth(c *client.APIClient) error {
 	return nil
 }
 
-func configureIdentityService(c *client.APIClient) error {
+func identityServiceConfigStep(c *client.APIClient) error {
 	var config identity.IdentityServerConfig
 	if err := loadYAML(identityServiceConfigPath, &config); err != nil {
 		return err

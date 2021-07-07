@@ -187,6 +187,8 @@ func (s *StepTestSuite) TestUpdateState() {
 	s.writeYAML(oidcClientsPath, []identity.OIDCClient{updatedClient, newClient})
 
 	updatedIDP := mockIDPConnector
+	updatedIDP.Name = "updated"
+
 	newIDP := identity.IDPConnector{
 		Name:       "new",
 		Id:         "new",
@@ -214,6 +216,8 @@ func (s *StepTestSuite) TestUpdateState() {
 
 	idps, err := s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
 	s.Require().Equal(2, len(idps.Connectors))
+	// update the config version, we handle this automatically
+	updatedIDP.ConfigVersion = 1
 	s.Require().Equal(&updatedIDP, idps.Connectors[0])
 	s.Require().Equal(&newIDP, idps.Connectors[1])
 
@@ -230,4 +234,27 @@ func (s *StepTestSuite) TestUpdateState() {
 	for _, step := range syncSteps {
 		s.Require().NoError(step.fn(s.c))
 	}
+
+	clients, err = s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
+	s.Require().Equal(2, len(clients.Clients))
+	s.Require().Equal(&updatedClient, clients.Clients[0])
+	s.Require().Equal(&newClient, clients.Clients[1])
+
+	authConfig, err = s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(&oidcConfig, authConfig.Configuration)
+
+	idps, err = s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
+	s.Require().Equal(2, len(idps.Connectors))
+	s.Require().Equal(&updatedIDP, idps.Connectors[0])
+	s.Require().Equal(&newIDP, idps.Connectors[1])
+
+	roleBinding, err = s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
+		Resource: &auth.Resource{Type: auth.ResourceType_CLUSTER},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(map[string]*auth.Roles{
+		"pach:root": &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
+		"robot:new": &auth.Roles{Roles: map[string]bool{"repoWriter": true}},
+	}, roleBinding.Binding.Entries)
 }

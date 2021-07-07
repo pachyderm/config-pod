@@ -20,7 +20,7 @@ const (
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
 	authConfigPath            = "authConfig"
-	simpleAuth                = "simpleAuth"
+	simpleConfigPath          = "simpleConfig"
 )
 
 type clusterSyncFn func(*client.APIClient) error
@@ -31,15 +31,15 @@ type syncStep struct {
 }
 
 var syncSteps = []syncStep{
-	syncStep{"license key", syncLicense},
-	syncStep{"sync enterprise clusters", syncEnterpriseClusters},
-	syncStep{"configure enterprise service", configureEnterprise},
-	syncStep{"activate authentication", activateAuth},
-	syncStep{"configure identity service", configureIdentityService},
-	syncStep{"sync oidc clients", syncOIDCClients},
-	syncStep{"configure auth", configureAuth},
-	syncStep{"sync identity providers", syncIDPs},
-	syncStep{"sync cluster role bindings", syncRoleBindings},
+	syncStep{"license key", licenseStep},
+	syncStep{"sync enterprise clusters", enterpriseClustersStep},
+	syncStep{"configure enterprise service", enterpriseConfigStep},
+	syncStep{"activate authentication", activateAuthStep},
+	syncStep{"configure identity service", identityServiceConfigStep},
+	syncStep{"sync oidc clients", oidcClientsStep},
+	syncStep{"configure auth", authConfigStep},
+	syncStep{"sync identity providers", idpsStep},
+	syncStep{"sync cluster role bindings", roleBindingsStep},
 }
 
 var (
