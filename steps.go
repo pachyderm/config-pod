@@ -10,6 +10,8 @@ import (
 	"github.com/pachyderm/pachyderm/v2/src/license"
 	"github.com/pachyderm/pachyderm/v2/src/pfs"
 	"github.com/pachyderm/pachyderm/v2/src/pps"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 func syncLicense(c *client.APIClient) error {
@@ -71,22 +73,38 @@ func syncOIDCClients(c *client.APIClient) error {
 	return nil
 }
 
+func updateOrCreateIDP(c *client.APIClient, connector identity.IDPConnector, existing []*identity.IDPConnector) error {
+	for _, ex := range existing {
+		// If the connector config hasn't changed, don't update it
+		if ex.Id == connector.Id {
+			if proto.Equal(ex, &connector) {
+				return nil
+			}
+			connector.ConfigVersion = ex.ConfigVersion + 1
+			_, err := c.UpdateIDPConnector(c.Ctx(), &identity.UpdateIDPConnectorRequest{Connector: &connector})
+			return err
+		}
+	}
+
+	_, err := c.CreateIDPConnector(c.Ctx(), &identity.CreateIDPConnectorRequest{Connector: &connector})
+	return err
+}
+
 func syncIDPs(c *client.APIClient) error {
 	var connectors []identity.IDPConnector
 	if err := loadYAML(idpsPath, &connectors); err != nil {
 		return err
 	}
 
-	for _, connector := range connectors {
-		if _, err := c.CreateIDPConnector(c.Ctx(), &identity.CreateIDPConnectorRequest{Connector: &connector}); err != nil {
-			if !identity.IsErrAlreadyExists(err) {
-				return err
-			}
+	// Normally IDP config requires a "ConfigVersion" to be incremented, but when users
+	// are using the config pod we should just apply the latest version
+	existing, err := c.ListIDPConnectors(c.Ctx(), &identity.ListIDPConnectorsRequest{})
+	if err != nil {
+		return err
+	}
 
-			if _, err := c.UpdateIDPConnector(c.Ctx(), &identity.UpdateIDPConnectorRequest{Connector: &connector}); err != nil {
-				return err
-			}
-		}
+	for _, connector := range connectors {
+		updateOrCreateIDP(c, connector, existing.Connectors)
 	}
 
 	return nil
