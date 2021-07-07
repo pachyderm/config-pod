@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,13 +10,7 @@ import (
 	"github.com/ghodss/yaml"
 )
 
-type errSkipped struct {
-	msg string
-}
-
-func (e errSkipped) Error() string {
-	return e.msg
-}
+var errSkipped = errors.New("skipped step")
 
 // skipIfNotExist loads the contents of a config file, or returns
 // an errSkipped if the file doesn't exist.
@@ -24,7 +19,7 @@ func skipIfNotExist(path string) ([]byte, error) {
 	data, err := ioutil.ReadFile(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, errSkipped{fmt.Sprintf("no file %q", fullPath)}
+			return nil, fmt.Errorf("%w - no file %s", errSkipped, fullPath)
 		}
 		return nil, err
 	}

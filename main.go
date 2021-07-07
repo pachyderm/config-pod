@@ -68,7 +68,7 @@ func main() {
 	log.Infof("loading root auth token")
 	rootToken, err := loadRootToken()
 	if err != nil {
-		if !errors.Is(err, errSkipped{}) {
+		if !errors.Is(err, errSkipped) {
 			log.WithError(err).Error("failed to load root auth token")
 			os.Exit(1)
 		}
@@ -82,7 +82,7 @@ func main() {
 		stepLogger.Info("running step")
 		err := step.fn(c)
 		if err != nil {
-			if !errors.Is(err, errSkipped{}) {
+			if !errors.Is(err, errSkipped) {
 				stepLogger.WithError(err).Error("error syncing cluster state")
 				os.Exit(1)
 			}

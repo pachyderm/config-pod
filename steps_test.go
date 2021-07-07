@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
@@ -146,4 +147,12 @@ func (s *StepTestSuite) TestConfigureSingleNodeAuth() {
 		"pach:root":  &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
 		"robot:test": &auth.Roles{Roles: map[string]bool{"repoReader": true}},
 	}, roleBinding.Binding.Entries)
+}
+
+// TestSkipStep tests that every step raises errSkipped if there's no configuration
+func (s *StepTestSuite) TestSkipStep() {
+	for _, step := range syncSteps {
+		err := step.fn(s.c)
+		s.Require().True(errors.Is(err, errSkipped))
+	}
 }
