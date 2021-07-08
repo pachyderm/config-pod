@@ -21,6 +21,7 @@ const (
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
 	authConfigPath            = "authConfig"
+	authPath                  = "auth"
 )
 
 type clusterSyncFn func(*client.APIClient) error
@@ -38,6 +39,7 @@ var syncSteps = []syncStep{
 	syncStep{"activate authentication", activateAuthStep},
 	syncStep{"configure identity service", identityServiceConfigStep},
 	syncStep{"sync oidc clients", oidcClientsStep},
+	syncStep{"simple auth config", authStep},
 	syncStep{"configure auth", authConfigStep},
 	syncStep{"sync identity providers", idpsStep},
 	syncStep{"sync cluster role bindings", roleBindingsStep},

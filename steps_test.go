@@ -18,37 +18,13 @@ import (
 )
 
 var (
-	testRootToken = "testroottoken"
+	testRootToken  = "testroottoken"
+	testIssuer     = "http://localhost:30658/"
+	testOIDCSecret = "oidcsecret"
+	testRedirect   = "http://localhost:30657/redirect"
 
-	oidcConfig = auth.OIDCConfig{
-		Issuer:          "http://localhost:30658/",
-		ClientID:        "oidcsecret",
-		ClientSecret:    "notsecret",
-		RedirectURI:     "http://pachd:1657/authorization-code/callback",
-		LocalhostIssuer: true,
-		Scopes:          auth.DefaultOIDCScopes,
-	}
-
-	pachydermOIDCClient = identity.OIDCClient{
-		Id:           "pachyderm",
-		RedirectUris: []string{"http://pachd:1657/authorization-code/callback"},
-		Name:         "pachd",
-		Secret:       "oidcsecret",
-	}
-
-	mockIDPConnector = identity.IDPConnector{
-		Name:       "test",
-		Id:         "test",
-		Type:       "mockPassword",
-		JsonConfig: `{"username": "admin", "password": "password"}`,
-	}
-
-	externalEnterpriseCluster = license.AddClusterRequest{
-		Id:          "external",
-		Address:     "grpc://localhost:1653",
-		UserAddress: "grpc://localhost:1653",
-		Secret:      "externalSecret",
-	}
+	oidcConfig          = localhostOIDCConfig(testIssuer, testOIDCSecret, testRedirect)
+	pachydermOIDCClient = localhostOIDCClient(testOIDCSecret, testRedirect, []string{})
 )
 
 type StepTestSuite struct {
@@ -85,9 +61,16 @@ func (s *StepTestSuite) SetupTest() {
 	s.Require().NoError(err)
 }
 
-// writeSingleNodeConfig writes out the config files for
-// a single enterprise-licensed pachd with auth enaabled
-func (s *StepTestSuite) writeSingleNodeConfig() {
+// TestSkipStep tests that every step raises errSkipped if there's no configuration
+func (s *StepTestSuite) TestSkipStep() {
+	for _, step := range syncSteps {
+		err := step.fn(s.c)
+		s.Require().True(errors.Is(err, errSkipped))
+	}
+}
+
+// writeSimpleConfig writes a simple, minimal config for a single node
+func (s *StepTestSuite) writeSimpleConfig() {
 	// write out an enterprise token
 	s.writeFile(licensePath, []byte(os.Getenv("ENT_ACT_CODE")))
 
@@ -97,29 +80,17 @@ func (s *StepTestSuite) writeSingleNodeConfig() {
 	// configure enterprise secret
 	s.writeFile(enterpriseSecretPath, []byte("enterpriseSecret"))
 
-	// configure the identity service
-	s.writeYAML(identityServiceConfigPath, identity.IdentityServerConfig{
-		Issuer: "http://localhost:30658/",
-	})
-
-	// configure an OIDC client for pachd
-	s.writeYAML(oidcClientsPath, []identity.OIDCClient{pachydermOIDCClient})
-
-	// configure the auth service
-	s.writeYAML(authConfigPath, oidcConfig)
-
-	// configure an IDP connector
-	s.writeYAML(idpsPath, []identity.IDPConnector{mockIDPConnector})
-
-	// add a role binding
-	s.writeYAML(clusterRoleBindingsPath, map[string][]string{
-		"robot:test": []string{"repoReader"},
+	// configure auth using the simple config
+	s.writeYAML(authPath, simpleAuthConfig{
+		Issuer:      testIssuer,
+		Secret:      testOIDCSecret,
+		RedirectURI: testRedirect,
 	})
 }
 
-// TestConfigureSingleNodeAuth tests configuring a single pachd to authenticate using an IDP.
-func (s *StepTestSuite) TestConfigureSingleNodeAuth() {
-	s.writeSingleNodeConfig()
+// TestSimpleConfig tests configuring a single pachd with only the simple config
+func (s *StepTestSuite) TestSimpleConfig() {
+	s.writeSimpleConfig()
 
 	for _, step := range syncSteps {
 		step.fn(s.c)
@@ -132,15 +103,51 @@ func (s *StepTestSuite) TestConfigureSingleNodeAuth() {
 
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
 	s.Require().Equal(1, len(clients.Clients))
+	s.Require().Nil(clients.Clients[0].TrustedPeers)
+	clients.Clients[0].TrustedPeers = []string{}
 	s.Require().Equal(&pachydermOIDCClient, clients.Clients[0])
 
 	authConfig, err := s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(&oidcConfig, authConfig.Configuration)
 
-	idps, err := s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
-	s.Require().Equal(1, len(idps.Connectors))
-	s.Require().Equal(&mockIDPConnector, idps.Connectors[0])
+}
+
+// TestFullConfig tests explicitly setting the IDP and OIDC config, rather than using the simple config
+func (s *StepTestSuite) TestFullConfig() {
+	// write out an enterprise token
+	s.writeFile(licensePath, []byte(os.Getenv("ENT_ACT_CODE")))
+
+	// write out the root token
+	s.writeFile(rootTokenPath, []byte(testRootToken))
+
+	// configure the identity service
+	s.writeYAML(identityServiceConfigPath, identity.IdentityServerConfig{
+		Issuer: testIssuer,
+	})
+
+	s.writeYAML(authConfigPath, oidcConfig)
+
+	for _, step := range syncSteps {
+		step.fn(s.c)
+	}
+
+	authConfig, err := s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(&oidcConfig, authConfig.Configuration)
+}
+
+func (s *StepTestSuite) TestRoleBindings() {
+	s.writeSimpleConfig()
+
+	// add a role binding
+	s.writeYAML(clusterRoleBindingsPath, map[string][]string{
+		"robot:test": []string{"repoReader"},
+	})
+
+	for _, step := range syncSteps {
+		step.fn(s.c)
+	}
 
 	roleBinding, err := s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
 		Resource: &auth.Resource{Type: auth.ResourceType_CLUSTER},
@@ -150,27 +157,65 @@ func (s *StepTestSuite) TestConfigureSingleNodeAuth() {
 		"pach:root":  &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
 		"robot:test": &auth.Roles{Roles: map[string]bool{"repoReader": true}},
 	}, roleBinding.Binding.Entries)
-}
 
-// TestSkipStep tests that every step raises errSkipped if there's no configuration
-func (s *StepTestSuite) TestSkipStep() {
-	for _, step := range syncSteps {
-		err := step.fn(s.c)
-		s.Require().True(errors.Is(err, errSkipped))
-	}
-}
+	s.writeYAML(clusterRoleBindingsPath, map[string][]string{
+		"robot:test2": []string{"repoWriter"},
+	})
 
-// TestUpdateState tests that a subsequent run of the pod updates the OIDC clients, IDPs, clusters, role bindings
-func (s *StepTestSuite) TestUpdateState() {
-	// write the initial config and apply it
-	s.writeSingleNodeConfig()
 	for _, step := range syncSteps {
 		step.fn(s.c)
 	}
 
-	// update the config and re-apply it
-	updatedClient := pachydermOIDCClient
-	updatedClient.Name = "updated"
+	roleBinding, err = s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
+		Resource: &auth.Resource{Type: auth.ResourceType_CLUSTER},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(map[string]*auth.Roles{
+		"pach:root":   &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
+		"robot:test2": &auth.Roles{Roles: map[string]bool{"repoWriter": true}},
+	}, roleBinding.Binding.Entries)
+
+}
+
+func (s *StepTestSuite) TestIDPs() {
+	s.writeSimpleConfig()
+
+	mockIDPConnector := identity.IDPConnector{
+		Name:       "test",
+		Id:         "test",
+		Type:       "mockPassword",
+		JsonConfig: `{"username": "admin", "password": "password"}`,
+	}
+
+	// configure an IDP connector
+	s.writeYAML(idpsPath, []identity.IDPConnector{mockIDPConnector})
+
+	for _, step := range syncSteps {
+		step.fn(s.c)
+	}
+
+	idps, err := s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(1, len(idps.Connectors))
+	s.Require().Equal(&mockIDPConnector, idps.Connectors[0])
+
+	mockIDPConnector.Name = "updated"
+
+	s.writeYAML(idpsPath, []identity.IDPConnector{mockIDPConnector})
+	for _, step := range syncSteps {
+		step.fn(s.c)
+	}
+
+	idps, err = s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(1, len(idps.Connectors))
+	mockIDPConnector.ConfigVersion = 1
+	s.Require().Equal(&mockIDPConnector, idps.Connectors[0])
+}
+
+// TestOIDCClients tests configuring additional OIDC clients
+func (s *StepTestSuite) TestOIDCClients() {
+	s.writeSimpleConfig()
 
 	newClient := identity.OIDCClient{
 		Id:           "new",
@@ -178,83 +223,39 @@ func (s *StepTestSuite) TestUpdateState() {
 		Name:         "new",
 		Secret:       "secret",
 	}
-	s.writeYAML(oidcClientsPath, []identity.OIDCClient{updatedClient, newClient})
 
-	updatedIDP := mockIDPConnector
-	updatedIDP.Name = "updated"
-
-	newIDP := identity.IDPConnector{
-		Name:       "new",
-		Id:         "new",
-		Type:       "mockPassword",
-		JsonConfig: `{"username": "admin", "password": "password"}`,
-	}
-	s.writeYAML(idpsPath, []identity.IDPConnector{updatedIDP, newIDP})
-
-	s.writeYAML(clusterRoleBindingsPath, map[string][]string{
-		"robot:new": []string{"repoWriter"},
-	})
-
+	s.writeYAML(oidcClientsPath, []identity.OIDCClient{newClient})
 	for _, step := range syncSteps {
 		step.fn(s.c)
 	}
 
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
+	s.Require().NoError(err)
 	s.Require().Equal(2, len(clients.Clients))
-	s.Require().Equal(&updatedClient, clients.Clients[0])
-	s.Require().Equal(&newClient, clients.Clients[1])
+	s.Require().Equal(&newClient, clients.Clients[0])
 
-	authConfig, err := s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(&oidcConfig, authConfig.Configuration)
+	newClient.Name = "updated"
 
-	idps, err := s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
-	s.Require().Equal(2, len(idps.Connectors))
-	// update the config version, we handle this automatically
-	updatedIDP.ConfigVersion = 1
-	s.Require().Equal(&updatedIDP, idps.Connectors[0])
-	s.Require().Equal(&newIDP, idps.Connectors[1])
-
-	roleBinding, err := s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
-		Resource: &auth.Resource{Type: auth.ResourceType_CLUSTER},
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(map[string]*auth.Roles{
-		"pach:root": &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
-		"robot:new": &auth.Roles{Roles: map[string]bool{"repoWriter": true}},
-	}, roleBinding.Binding.Entries)
-
-	// Run again, no changes, should be idempotent
+	s.writeYAML(oidcClientsPath, []identity.OIDCClient{newClient})
 	for _, step := range syncSteps {
 		step.fn(s.c)
 	}
 
 	clients, err = s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
+	s.Require().NoError(err)
 	s.Require().Equal(2, len(clients.Clients))
-	s.Require().Equal(&updatedClient, clients.Clients[0])
-	s.Require().Equal(&newClient, clients.Clients[1])
-
-	authConfig, err = s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(&oidcConfig, authConfig.Configuration)
-
-	idps, err = s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
-	s.Require().Equal(2, len(idps.Connectors))
-	s.Require().Equal(&updatedIDP, idps.Connectors[0])
-	s.Require().Equal(&newIDP, idps.Connectors[1])
-
-	roleBinding, err = s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
-		Resource: &auth.Resource{Type: auth.ResourceType_CLUSTER},
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(map[string]*auth.Roles{
-		"pach:root": &auth.Roles{Roles: map[string]bool{"clusterAdmin": true}},
-		"robot:new": &auth.Roles{Roles: map[string]bool{"repoWriter": true}},
-	}, roleBinding.Binding.Entries)
+	s.Require().Equal(&newClient, clients.Clients[0])
 }
 
 // TestEnterpriseConfig tests configuring a pachd to talk to an external enterprise server
 func (s *StepTestSuite) TestEnterpriseConfig() {
+	externalEnterpriseCluster := license.AddClusterRequest{
+		Id:          "external",
+		Address:     "grpc://localhost:1653",
+		UserAddress: "grpc://localhost:1653",
+		Secret:      "externalSecret",
+	}
+
 	s.writeFile(licensePath, []byte(os.Getenv("ENT_ACT_CODE")))
 	s.writeYAML(enterpriseClustersPath, []license.AddClusterRequest{externalEnterpriseCluster})
 	s.writeYAML(enterpriseConfigPath, enterprise.ActivateRequest{

@@ -36,6 +36,27 @@ func localhostEnterpriseConfig(secret string) enterprise.ActivateRequest {
 	}
 }
 
+func localhostOIDCClient(secret, redirect string, trustedPeers []string) identity.OIDCClient {
+	return identity.OIDCClient{
+		Id:           "pachd",
+		Name:         "pachd",
+		Secret:       secret,
+		RedirectUris: []string{redirect},
+		TrustedPeers: trustedPeers,
+	}
+}
+
+func localhostOIDCConfig(issuer, secret, redirect string) auth.OIDCConfig {
+	return auth.OIDCConfig{
+		Issuer:          issuer,
+		ClientID:        "pachd",
+		ClientSecret:    secret,
+		RedirectURI:     redirect,
+		LocalhostIssuer: true,
+		Scopes:          auth.DefaultOIDCScopes,
+	}
+}
+
 func licenseStep(c *client.APIClient) error {
 	key, err := skipIfNotExist(licensePath)
 	if err != nil {
@@ -259,5 +280,35 @@ func identityServiceConfigStep(c *client.APIClient) error {
 	}
 
 	_, err := c.SetIdentityServerConfig(c.Ctx(), &identity.SetIdentityServerConfigRequest{Config: &config})
+	return err
+}
+
+type simpleAuthConfig struct {
+	Issuer       string
+	RedirectURI  string
+	Secret       string
+	TrustedPeers []string
+}
+
+func authStep(c *client.APIClient) error {
+	var config simpleAuthConfig
+	if err := loadYAML(authPath, &config); err != nil {
+		return err
+	}
+
+	if _, err := c.SetIdentityServerConfig(c.Ctx(), &identity.SetIdentityServerConfigRequest{
+		Config: &identity.IdentityServerConfig{Issuer: config.Issuer},
+	}); err != nil {
+		return err
+	}
+
+	if err := syncOIDCClients(c, []identity.OIDCClient{
+		localhostOIDCClient(config.Secret, config.RedirectURI, config.TrustedPeers),
+	}); err != nil {
+		return err
+	}
+
+	oidcConfig := localhostOIDCConfig(config.Issuer, config.Secret, config.RedirectURI)
+	_, err := c.SetConfiguration(c.Ctx(), &auth.SetConfigurationRequest{Configuration: &oidcConfig})
 	return err
 }
