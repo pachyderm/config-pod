@@ -105,7 +105,7 @@ func (s *StepTestSuite) writeSimpleConfig() {
 	s.writeYAML(identityServiceConfigPath, identity.IdentityServerConfig{Issuer: testIssuer})
 
 	// configure oidc client
-	s.writeYAML(oidcClientsPath, pachydermOIDCClient)
+	s.writeYAML(oidcClientsPath, []identity.OIDCClient{pachydermOIDCClient})
 
 	// configure auth config
 	s.writeYAML(authConfigPath, oidcConfig)
@@ -128,7 +128,7 @@ func (s *StepTestSuite) TestSimpleConfig() {
 	s.Require().NoError(err)
 	s.Require().Equal(1, len(clients.Clients))
 	s.Require().Nil(clients.Clients[0].TrustedPeers)
-	clients.Clients[0].TrustedPeers = []string{}
+	clients.Clients[0].TrustedPeers = []string(nil)
 	s.Require().Equal(&pachydermOIDCClient, clients.Clients[0])
 
 	authConfig, err := s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
