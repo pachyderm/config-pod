@@ -24,8 +24,29 @@ var (
 	testRedirect   = "http://localhost:30657/redirect"
 
 	oidcConfig          = localhostOIDCConfig(testIssuer, testOIDCSecret, testRedirect)
-	pachydermOIDCClient = localhostOIDCClient(testOIDCSecret, testRedirect, []string{})
+	pachydermOIDCClient = localhostOIDCClient(testOIDCSecret, testRedirect, []string(nil))
 )
+
+func localhostOIDCClient(secret, redirect string, trustedPeers []string) identity.OIDCClient {
+	return identity.OIDCClient{
+		Id:           "pachd",
+		Name:         "pachd",
+		Secret:       secret,
+		RedirectUris: []string{redirect},
+		TrustedPeers: trustedPeers,
+	}
+}
+
+func localhostOIDCConfig(issuer, secret, redirect string) auth.OIDCConfig {
+	return auth.OIDCConfig{
+		Issuer:          issuer,
+		ClientID:        "pachd",
+		ClientSecret:    secret,
+		RedirectURI:     redirect,
+		LocalhostIssuer: true,
+		Scopes:          auth.DefaultOIDCScopes,
+	}
+}
 
 type StepTestSuite struct {
 	suite.Suite
@@ -80,12 +101,14 @@ func (s *StepTestSuite) writeSimpleConfig() {
 	// configure enterprise secret
 	s.writeFile(enterpriseSecretPath, []byte("enterpriseSecret"))
 
-	// configure auth using the simple config
-	s.writeYAML(authPath, simpleAuthConfig{
-		Issuer:      testIssuer,
-		Secret:      testOIDCSecret,
-		RedirectURI: testRedirect,
-	})
+	// configure test issuer
+	s.writeYAML(identityServiceConfigPath, identity.IdentityServerConfig{Issuer: testIssuer})
+
+	// configure oidc client
+	s.writeYAML(oidcClientsPath, pachydermOIDCClient)
+
+	// configure auth config
+	s.writeYAML(authConfigPath, oidcConfig)
 }
 
 // TestSimpleConfig tests configuring a single pachd with only the simple config
@@ -102,6 +125,7 @@ func (s *StepTestSuite) TestSimpleConfig() {
 	s.Require().Equal(resp.Username, "pach:root")
 
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
+	s.Require().NoError(err)
 	s.Require().Equal(1, len(clients.Clients))
 	s.Require().Nil(clients.Clients[0].TrustedPeers)
 	clients.Clients[0].TrustedPeers = []string{}
@@ -224,7 +248,7 @@ func (s *StepTestSuite) TestOIDCClients() {
 		Secret:       "secret",
 	}
 
-	s.writeYAML(oidcClientsPath, []identity.OIDCClient{newClient})
+	s.writeYAML(oidcClientsPath, []identity.OIDCClient{pachydermOIDCClient, newClient})
 	for _, step := range syncSteps {
 		step.fn(s.c)
 	}
@@ -232,7 +256,8 @@ func (s *StepTestSuite) TestOIDCClients() {
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(2, len(clients.Clients))
-	s.Require().Equal(&newClient, clients.Clients[0])
+	s.Require().Equal(&pachydermOIDCClient, clients.Clients[0])
+	s.Require().Equal(&newClient, clients.Clients[1])
 
 	newClient.Name = "updated"
 
@@ -244,7 +269,7 @@ func (s *StepTestSuite) TestOIDCClients() {
 	clients, err = s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(2, len(clients.Clients))
-	s.Require().Equal(&newClient, clients.Clients[0])
+	s.Require().Equal(&newClient, clients.Clients[1])
 }
 
 // TestEnterpriseConfig tests configuring a pachd to talk to an external enterprise server
