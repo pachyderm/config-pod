@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ghodss/yaml"
 )
@@ -36,4 +37,15 @@ func loadYAML(path string, target interface{}) error {
 		return err
 	}
 	return yaml.Unmarshal(data, &target)
+}
+
+func resolveIfEnvVar(v string) (string, error) {
+	if strings.HasPrefix(v, "$") {
+		val, isset := os.LookupEnv(strings.TrimPrefix(v, "$"))
+		if !isset {
+			return "", fmt.Errorf("expected environment variable, %s, is not set", strings.TrimPrefix(v, "$"))
+		}
+		return val, nil
+	}
+	return v, nil
 }

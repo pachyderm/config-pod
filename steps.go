@@ -68,6 +68,11 @@ func enterpriseSecretStep(c *client.APIClient) error {
 
 func syncEnterpriseClusters(c *client.APIClient, clusters []license.AddClusterRequest) error {
 	for _, cluster := range clusters {
+		if v, err := resolveIfEnvVar(cluster.ClusterDeploymentId); err != nil {
+			return err
+		} else {
+			cluster.ClusterDeploymentId = v
+		}
 		if _, err := c.License.AddCluster(c.Ctx(), &cluster); err != nil {
 			if !license.IsErrDuplicateClusterID(err) {
 				return err
@@ -98,6 +103,11 @@ func enterpriseClustersStep(c *client.APIClient) error {
 
 func syncOIDCClients(c *client.APIClient, clients []identity.OIDCClient) error {
 	for _, client := range clients {
+		if v, err := resolveIfEnvVar(client.Secret); err != nil {
+			return err
+		} else {
+			client.Secret = v
+		}
 		if _, err := c.CreateOIDCClient(c.Ctx(), &identity.CreateOIDCClientRequest{Client: &client}); err != nil {
 			if !identity.IsErrAlreadyExists(err) {
 				return err

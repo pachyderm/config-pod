@@ -248,16 +248,29 @@ func (s *StepTestSuite) TestOIDCClients() {
 		Secret:       "secret",
 	}
 
-	s.writeYAML(oidcClientsPath, []identity.OIDCClient{pachydermOIDCClient, newClient})
+	// test that oidcClient.Secret value resolves if it's an environment variable
+	newClientWithEnvVarSecret := identity.OIDCClient{
+		Id:           "withEnvVarSecret",
+		RedirectUris: []string{"http://other:1657/authorization-code/callback"},
+		Name:         "withEnvVarSecret",
+		Secret:       "$TEST_SECRET",
+	}
+	expectedNewClientWithEnvVarSecret := newClientWithEnvVarSecret
+
+	s.Require().NoError(os.Setenv("TEST_SECRET", "test_secret_value"))
+	expectedNewClientWithEnvVarSecret.Secret = "test_secret_value"
+
+	s.writeYAML(oidcClientsPath, []identity.OIDCClient{pachydermOIDCClient, newClient, newClientWithEnvVarSecret})
 	for _, step := range syncSteps {
 		step.fn(s.c)
 	}
 
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(2, len(clients.Clients))
+	s.Require().Equal(3, len(clients.Clients))
 	s.Require().Equal(&pachydermOIDCClient, clients.Clients[0])
 	s.Require().Equal(&newClient, clients.Clients[1])
+	s.Require().Equal(&expectedNewClientWithEnvVarSecret, clients.Clients[2])
 
 	newClient.Name = "updated"
 
@@ -268,17 +281,18 @@ func (s *StepTestSuite) TestOIDCClients() {
 
 	clients, err = s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(2, len(clients.Clients))
-	s.Require().Equal(&newClient, clients.Clients[1])
+	s.Require().Equal(3, len(clients.Clients))
+	s.Require().Equal(&newClient, clients.Clients[2])
 }
 
 // TestEnterpriseConfig tests configuring a pachd to talk to an external enterprise server
 func (s *StepTestSuite) TestEnterpriseConfig() {
 	externalEnterpriseCluster := license.AddClusterRequest{
-		Id:          "external",
-		Address:     "grpc://localhost:1653",
-		UserAddress: "grpc://localhost:1653",
-		Secret:      "externalSecret",
+		Id:                  "external",
+		Address:             "grpc://localhost:1653",
+		UserAddress:         "grpc://localhost:1653",
+		Secret:              "externalSecret",
+		ClusterDeploymentId: "cluster-deployment-1",
 	}
 
 	s.writeFile(licensePath, []byte(os.Getenv("ENT_ACT_CODE")))
@@ -305,11 +319,15 @@ func (s *StepTestSuite) TestEnterpriseConfig() {
 	updatedCluster.Address = "grpc://localhost:1650"
 
 	newCluster := license.AddClusterRequest{
-		Id:          "external2",
-		Address:     "grpc://localhost:1653",
-		UserAddress: "grpc://external2:1653",
-		Secret:      "externalSecret2",
+		Id:                  "external2",
+		Address:             "grpc://localhost:1653",
+		UserAddress:         "grpc://external2:1653",
+		Secret:              "externalSecret2",
+		ClusterDeploymentId: "$CLUSTER_2_DEPLOYMENT",
 	}
+	// testing that ClusterDeploymentId can reference an environment variable
+	os.Setenv("CLUSTER_2_DEPLOYMENT", "refrenced-depoyment-id")
+
 	s.writeYAML(enterpriseClustersPath, []license.AddClusterRequest{updatedCluster, newCluster})
 	for _, step := range syncSteps {
 		step.fn(s.c)
@@ -320,4 +338,10 @@ func (s *StepTestSuite) TestEnterpriseConfig() {
 	s.Require().Equal(2, len(clusters.Clusters))
 	s.Require().Equal("grpc://localhost:1653", clusters.Clusters[0].Address)
 	s.Require().Equal("grpc://localhost:1650", clusters.Clusters[1].Address)
+
+	userClusters, err := s.c.License.ListUserClusters(s.c.Ctx(), &license.ListUserClustersRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(2, len(userClusters.Clusters))
+	s.Require().Equal("refrenced-depoyment-id", userClusters.Clusters[0].ClusterDeploymentId)
+	s.Require().Equal("cluster-deployment-1", userClusters.Clusters[1].ClusterDeploymentId)
 }
