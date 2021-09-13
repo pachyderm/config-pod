@@ -36,49 +36,49 @@ func localhostEnterpriseConfig(secret string) enterprise.ActivateRequest {
 	}
 }
 
-func licenseStep(c *client.APIClient) error {
+func licenseStep(_ *client.APIClient, ec *client.APIClient) error {
 	key, err := skipIfNotExist(licensePath)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.License.Activate(c.Ctx(), &license.ActivateRequest{
+	_, err = ec.License.Activate(ec.Ctx(), &license.ActivateRequest{
 		ActivationCode: string(key),
 	})
 	return err
 }
 
-func enterpriseSecretStep(c *client.APIClient) error {
+func enterpriseSecretStep(_ *client.APIClient, ec *client.APIClient) error {
 	secret, err := skipIfNotExist(enterpriseSecretPath)
 	if err != nil {
 		return err
 	}
 
 	cluster := localhostEnterpriseCluster(string(secret))
-	if _, err := c.License.AddCluster(c.Ctx(), &cluster); err != nil {
+	if _, err := ec.License.AddCluster(ec.Ctx(), &cluster); err != nil {
 		if !license.IsErrDuplicateClusterID(err) {
 			return err
 		}
 	}
 
 	config := localhostEnterpriseConfig(string(secret))
-	_, err = c.Enterprise.Activate(c.Ctx(), &config)
+	_, err = ec.Enterprise.Activate(ec.Ctx(), &config)
 	return err
 }
 
-func syncEnterpriseClusters(c *client.APIClient, clusters []license.AddClusterRequest) error {
+func syncEnterpriseClusters(ec *client.APIClient, clusters []license.AddClusterRequest) error {
 	for _, cluster := range clusters {
 		if v, err := resolveIfEnvVar(cluster.ClusterDeploymentId); err != nil {
 			return err
 		} else {
 			cluster.ClusterDeploymentId = v
 		}
-		if _, err := c.License.AddCluster(c.Ctx(), &cluster); err != nil {
+		if _, err := ec.License.AddCluster(ec.Ctx(), &cluster); err != nil {
 			if !license.IsErrDuplicateClusterID(err) {
 				return err
 			}
 
-			if _, err := c.License.UpdateCluster(c.Ctx(), &license.UpdateClusterRequest{
+			if _, err := ec.License.UpdateCluster(ec.Ctx(), &license.UpdateClusterRequest{
 				Id:                  cluster.Id,
 				Address:             cluster.Address,
 				UserAddress:         cluster.UserAddress,
@@ -92,28 +92,28 @@ func syncEnterpriseClusters(c *client.APIClient, clusters []license.AddClusterRe
 	return nil
 }
 
-func enterpriseClustersStep(c *client.APIClient) error {
+func enterpriseClustersStep(_ *client.APIClient, ec *client.APIClient) error {
 	var clusters []license.AddClusterRequest
 	if err := loadYAML(enterpriseClustersPath, &clusters); err != nil {
 		return err
 	}
 
-	return syncEnterpriseClusters(c, clusters)
+	return syncEnterpriseClusters(ec, clusters)
 }
 
-func syncOIDCClients(c *client.APIClient, clients []identity.OIDCClient) error {
+func syncOIDCClients(ec *client.APIClient, clients []identity.OIDCClient) error {
 	for _, client := range clients {
 		if v, err := resolveIfEnvVar(client.Secret); err != nil {
 			return err
 		} else {
 			client.Secret = v
 		}
-		if _, err := c.CreateOIDCClient(c.Ctx(), &identity.CreateOIDCClientRequest{Client: &client}); err != nil {
+		if _, err := ec.CreateOIDCClient(ec.Ctx(), &identity.CreateOIDCClientRequest{Client: &client}); err != nil {
 			if !identity.IsErrAlreadyExists(err) {
 				return err
 			}
 
-			if _, err := c.UpdateOIDCClient(c.Ctx(), &identity.UpdateOIDCClientRequest{Client: &client}); err != nil {
+			if _, err := ec.UpdateOIDCClient(ec.Ctx(), &identity.UpdateOIDCClientRequest{Client: &client}); err != nil {
 				return err
 			}
 		}
@@ -122,16 +122,16 @@ func syncOIDCClients(c *client.APIClient, clients []identity.OIDCClient) error {
 	return nil
 }
 
-func oidcClientsStep(c *client.APIClient) error {
+func oidcClientsStep(_ *client.APIClient, ec *client.APIClient) error {
 	var clients []identity.OIDCClient
 	if err := loadYAML(oidcClientsPath, &clients); err != nil {
 		return err
 	}
 
-	return syncOIDCClients(c, clients)
+	return syncOIDCClients(ec, clients)
 }
 
-func updateOrCreateIDP(c *client.APIClient, connector identity.IDPConnector, existing []*identity.IDPConnector) error {
+func updateOrCreateIDP(ec *client.APIClient, connector identity.IDPConnector, existing []*identity.IDPConnector) error {
 	for _, ex := range existing {
 		// If the connector config hasn't changed, don't update it
 		if ex.Id == connector.Id {
@@ -142,16 +142,16 @@ func updateOrCreateIDP(c *client.APIClient, connector identity.IDPConnector, exi
 
 			// If we are updating the connector, increment the version
 			connector.ConfigVersion = ex.ConfigVersion + 1
-			_, err := c.UpdateIDPConnector(c.Ctx(), &identity.UpdateIDPConnectorRequest{Connector: &connector})
+			_, err := ec.UpdateIDPConnector(ec.Ctx(), &identity.UpdateIDPConnectorRequest{Connector: &connector})
 			return err
 		}
 	}
 
-	_, err := c.CreateIDPConnector(c.Ctx(), &identity.CreateIDPConnectorRequest{Connector: &connector})
+	_, err := ec.CreateIDPConnector(ec.Ctx(), &identity.CreateIDPConnectorRequest{Connector: &connector})
 	return err
 }
 
-func idpsStep(c *client.APIClient) error {
+func idpsStep(_ *client.APIClient, ec *client.APIClient) error {
 	var connectors []identity.IDPConnector
 	if err := loadYAML(idpsPath, &connectors); err != nil {
 		return err
@@ -159,19 +159,19 @@ func idpsStep(c *client.APIClient) error {
 
 	// Normally IDP config requires a "ConfigVersion" to be incremented, but when users
 	// are using the config pod we should just apply the latest version
-	existing, err := c.ListIDPConnectors(c.Ctx(), &identity.ListIDPConnectorsRequest{})
+	existing, err := ec.ListIDPConnectors(ec.Ctx(), &identity.ListIDPConnectorsRequest{})
 	if err != nil {
 		return err
 	}
 
 	for _, connector := range connectors {
-		updateOrCreateIDP(c, connector, existing.Connectors)
+		updateOrCreateIDP(ec, connector, existing.Connectors)
 	}
 
 	return nil
 }
 
-func roleBindingsStep(c *client.APIClient) error {
+func roleBindingsStep(c *client.APIClient, _ *client.APIClient) error {
 	var roleBinding map[string][]string
 	if err := loadYAML(clusterRoleBindingsPath, &roleBinding); err != nil {
 		return err
@@ -213,7 +213,7 @@ func roleBindingsStep(c *client.APIClient) error {
 	return nil
 }
 
-func enterpriseConfigStep(c *client.APIClient) error {
+func enterpriseConfigStep(c *client.APIClient, _ *client.APIClient) error {
 	var config enterprise.ActivateRequest
 	if err := loadYAML(enterpriseConfigPath, &config); err != nil {
 		return err
@@ -223,7 +223,7 @@ func enterpriseConfigStep(c *client.APIClient) error {
 	return err
 }
 
-func authConfigStep(c *client.APIClient) error {
+func authConfigStep(c *client.APIClient, _ *client.APIClient) error {
 	var config auth.OIDCConfig
 	if err := loadYAML(authConfigPath, &config); err != nil {
 		return err
@@ -233,7 +233,7 @@ func authConfigStep(c *client.APIClient) error {
 	return err
 }
 
-func activateAuthStep(c *client.APIClient) error {
+func activateAuthStep(c *client.APIClient, _ *client.APIClient) error {
 	rootToken, err := loadRootToken()
 	if err != nil {
 		return err
@@ -262,7 +262,7 @@ func activateAuthStep(c *client.APIClient) error {
 	return nil
 }
 
-func identityServiceConfigStep(c *client.APIClient) error {
+func identityServiceConfigStep(c *client.APIClient, _ *client.APIClient) error {
 	var config identity.IdentityServerConfig
 	if err := loadYAML(identityServiceConfigPath, &config); err != nil {
 		return err

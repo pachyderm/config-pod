@@ -12,6 +12,8 @@ import (
 const (
 	// These are the keys for the config secret
 	rootTokenPath             = "rootToken"
+	enterpriseRootTokenPath   = "enterpriseRootToken"
+	enterpriseServerAddress   = "enterpriseServerAddress"
 	licensePath               = "license"
 	enterpriseSecretPath      = "enterpriseSecret"
 	enterpriseClustersPath    = "enterpriseClusters"
@@ -24,7 +26,9 @@ const (
 	authPath                  = "auth"
 )
 
-type clusterSyncFn func(*client.APIClient) error
+// the 1st client represents the pachd instance that needs to register with an enterprise server represented by the 2nd argument ("ec")
+// in the case of embedded servers, i.e. when the 'enterpriseServerAddress' path isn't populated, the two clients will be the same
+type clusterSyncFn func(c *client.APIClient, ec *client.APIClient) error
 
 type syncStep struct {
 	name string
@@ -61,11 +65,7 @@ func main() {
 	}
 
 	log.WithField("addr", pachAddr).Infof("connecting to pachyderm")
-	c, err := client.NewFromURI(pachAddr)
-	if err != nil {
-		log.WithError(err).Error("failed to connect to pachyderm")
-		os.Exit(1)
-	}
+	c := connectToPach(pachAddr)
 
 	log.Infof("loading root auth token")
 	rootToken, err := loadRootToken()
@@ -79,10 +79,24 @@ func main() {
 		c.SetAuthToken(string(rootToken))
 	}
 
+	var ec *client.APIClient
+	enterpriseServerAddrBytes, err := loadEnterpriseServerAddress()
+	if err != nil {
+		ec = c
+	} else {
+		ec = connectToPach(string(enterpriseServerAddrBytes))
+		enterpriseRootToken, err := loadEnterpriseRootToken()
+		if err != nil {
+			log.WithError(err).Error("failed to load enterprise root auth token")
+			os.Exit(1)
+		}
+		ec.SetAuthToken(string(enterpriseRootToken))
+	}
+
 	for _, step := range syncSteps {
 		stepLogger := log.WithField("step", step.name)
 		stepLogger.Info("running step")
-		err := step.fn(c)
+		err := step.fn(c, ec)
 		if err != nil {
 			if !errors.Is(err, errSkipped) {
 				stepLogger.WithError(err).Error("error syncing cluster state")

@@ -85,7 +85,7 @@ func (s *StepTestSuite) SetupTest() {
 // TestSkipStep tests that every step raises errSkipped if there's no configuration
 func (s *StepTestSuite) TestSkipStep() {
 	for _, step := range syncSteps {
-		err := step.fn(s.c)
+		err := step.fn(s.c, s.c)
 		s.Require().True(errors.Is(err, errSkipped))
 	}
 }
@@ -116,7 +116,7 @@ func (s *StepTestSuite) TestSimpleConfig() {
 	s.writeSimpleConfig()
 
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	// check that we're authenticated as the root user and auth is active
@@ -153,7 +153,7 @@ func (s *StepTestSuite) TestFullConfig() {
 	s.writeYAML(authConfigPath, oidcConfig)
 
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	authConfig, err := s.c.GetConfiguration(s.c.Ctx(), &auth.GetConfigurationRequest{})
@@ -170,7 +170,7 @@ func (s *StepTestSuite) TestRoleBindings() {
 	})
 
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	roleBinding, err := s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
@@ -187,7 +187,7 @@ func (s *StepTestSuite) TestRoleBindings() {
 	})
 
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	roleBinding, err = s.c.GetRoleBinding(s.c.Ctx(), &auth.GetRoleBindingRequest{
@@ -215,7 +215,7 @@ func (s *StepTestSuite) TestIDPs() {
 	s.writeYAML(idpsPath, []identity.IDPConnector{mockIDPConnector})
 
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	idps, err := s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
@@ -227,7 +227,7 @@ func (s *StepTestSuite) TestIDPs() {
 
 	s.writeYAML(idpsPath, []identity.IDPConnector{mockIDPConnector})
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	idps, err = s.c.ListIDPConnectors(s.c.Ctx(), &identity.ListIDPConnectorsRequest{})
@@ -262,7 +262,7 @@ func (s *StepTestSuite) TestOIDCClients() {
 
 	s.writeYAML(oidcClientsPath, []identity.OIDCClient{pachydermOIDCClient, newClient, newClientWithEnvVarSecret})
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	clients, err := s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
@@ -276,7 +276,7 @@ func (s *StepTestSuite) TestOIDCClients() {
 
 	s.writeYAML(oidcClientsPath, []identity.OIDCClient{newClient})
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	clients, err = s.c.ListOIDCClients(s.c.Ctx(), &identity.ListOIDCClientsRequest{})
@@ -304,7 +304,7 @@ func (s *StepTestSuite) TestEnterpriseConfig() {
 	})
 
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	clusters, err := s.c.License.ListClusters(s.c.Ctx(), &license.ListClustersRequest{})
@@ -330,7 +330,7 @@ func (s *StepTestSuite) TestEnterpriseConfig() {
 
 	s.writeYAML(enterpriseClustersPath, []license.AddClusterRequest{updatedCluster, newCluster})
 	for _, step := range syncSteps {
-		step.fn(s.c)
+		step.fn(s.c, s.c)
 	}
 
 	clusters, err = s.c.License.ListClusters(s.c.Ctx(), &license.ListClustersRequest{})
