@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/pachyderm/pachyderm/v2/src/client"
+	log "github.com/sirupsen/logrus"
 )
 
 var errSkipped = errors.New("skipped step")
@@ -31,6 +33,14 @@ func loadRootToken() ([]byte, error) {
 	return skipIfNotExist(rootTokenPath)
 }
 
+func loadEnterpriseRootToken() ([]byte, error) {
+	return skipIfNotExist(enterpriseRootTokenPath)
+}
+
+func loadEnterpriseServerAddress() ([]byte, error) {
+	return skipIfNotExist(enterpriseServerAddress)
+}
+
 func loadYAML(path string, target interface{}) error {
 	data, err := skipIfNotExist(path)
 	if err != nil {
@@ -48,4 +58,13 @@ func resolveIfEnvVar(v string) (string, error) {
 		return val, nil
 	}
 	return v, nil
+}
+
+func connectToPach(addr string) *client.APIClient {
+	c, err := client.NewFromURI(addr)
+	if err != nil {
+		log.WithError(err).Error("failed to connect to pachyderm")
+		os.Exit(1)
+	}
+	return c
 }
