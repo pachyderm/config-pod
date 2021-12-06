@@ -61,7 +61,11 @@ func resolveIfEnvVar(v string) (string, error) {
 }
 
 func connectToPach(addr string) *client.APIClient {
-	c, err := client.NewFromURI(addr)
+	options := make([]client.Option, 0)
+	if sslDir, ok := os.LookupEnv("OPENSSL_DIR"); ok {
+		options = append(options, client.WithRootCAs(sslDir))
+	}
+	c, err := client.NewFromURI(addr, options...)
 	if err != nil {
 		log.WithError(err).Error("failed to connect to pachyderm")
 		os.Exit(1)
