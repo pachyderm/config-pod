@@ -37,7 +37,7 @@ func localhostEnterpriseConfig(secret string) enterprise.ActivateRequest {
 }
 
 func licenseStep(_ *client.APIClient, ec *client.APIClient) error {
-	key, err := skipIfNotExist(licensePath)
+	key, err := skipIfNotExistResolvable(licensePath)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func licenseStep(_ *client.APIClient, ec *client.APIClient) error {
 }
 
 func enterpriseSecretStep(_ *client.APIClient, ec *client.APIClient) error {
-	secret, err := skipIfNotExist(enterpriseSecretPath)
+	secret, err := skipIfNotExistResolvable(enterpriseSecretPath)
 	if err != nil {
 		return err
 	}
@@ -73,6 +73,13 @@ func syncEnterpriseClusters(ec *client.APIClient, clusters []license.AddClusterR
 		} else {
 			cluster.ClusterDeploymentId = v
 		}
+
+		if v, err := resolveIfEnvVar(cluster.Secret); err != nil {
+			return err
+		} else {
+			cluster.Secret = v
+		}
+
 		if _, err := ec.License.AddCluster(ec.Ctx(), &cluster); err != nil {
 			if !license.IsErrDuplicateClusterID(err) {
 				return err
@@ -219,6 +226,12 @@ func enterpriseConfigStep(c *client.APIClient, _ *client.APIClient) error {
 		return err
 	}
 
+	if v, err := resolveIfEnvVar(config.Secret); err != nil {
+		return err
+	} else {
+		config.Secret = v
+	}
+
 	_, err := c.Enterprise.Activate(c.Ctx(), &config)
 	return err
 }
@@ -227,6 +240,12 @@ func authConfigStep(c *client.APIClient, _ *client.APIClient) error {
 	var config auth.OIDCConfig
 	if err := loadYAML(authConfigPath, &config); err != nil {
 		return err
+	}
+
+	if cs, err := resolveIfEnvVar(config.ClientSecret); err != nil {
+		return err
+	} else {
+		config.ClientSecret = cs
 	}
 
 	_, err := c.SetConfiguration(c.Ctx(), &auth.SetConfigurationRequest{Configuration: &config})

@@ -29,12 +29,24 @@ func skipIfNotExist(path string) ([]byte, error) {
 	return data, nil
 }
 
+func skipIfNotExistResolvable(path string) ([]byte, error) {
+	v, err := skipIfNotExist(path)
+	if err != nil {
+		return nil, err
+	}
+	vStr, err := resolveIfEnvVar(string(v))
+	if err != nil {
+		return nil, err
+	}
+	return []byte(vStr), nil
+}
+
 func loadRootToken() ([]byte, error) {
-	return skipIfNotExist(rootTokenPath)
+	return skipIfNotExistResolvable(rootTokenPath)
 }
 
 func loadEnterpriseRootToken() ([]byte, error) {
-	return skipIfNotExist(enterpriseRootTokenPath)
+	return skipIfNotExistResolvable(enterpriseRootTokenPath)
 }
 
 func loadEnterpriseServerAddress() ([]byte, error) {
@@ -46,7 +58,11 @@ func loadYAML(path string, target interface{}) error {
 	if err != nil {
 		return err
 	}
-	return yaml.Unmarshal(data, &target)
+	s, err := resolveIfEnvVar(string(data))
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal([]byte(s), &target)
 }
 
 func resolveIfEnvVar(v string) (string, error) {
