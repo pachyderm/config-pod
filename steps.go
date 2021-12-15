@@ -37,7 +37,7 @@ func localhostEnterpriseConfig(secret string) enterprise.ActivateRequest {
 }
 
 func licenseStep(_ *client.APIClient, ec *client.APIClient) error {
-	key, err := skipIfNotExist(licensePath)
+	key, err := skipIfNotExistResolvable(licensePath)
 	if err != nil {
 		return err
 	}

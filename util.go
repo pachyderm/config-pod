@@ -58,7 +58,11 @@ func loadYAML(path string, target interface{}) error {
 	if err != nil {
 		return err
 	}
-	return yaml.Unmarshal(data, &target)
+	s, err := resolveIfEnvVar(string(data))
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal([]byte(s), &target)
 }
 
 func resolveIfEnvVar(v string) (string, error) {
