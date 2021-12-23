@@ -102,7 +102,9 @@ func main() {
 				stepLogger.WithError(err).Error("error syncing cluster state")
 				os.Exit(1)
 			}
-			stepLogger.WithField("reason", err).Info("skipped")
+			stepLogger.WithField("reason", err).Warn("skipped")
+		} else {
+			stepLogger.Info("success")
 		}
 	}
 }
