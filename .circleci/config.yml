@@ -37,13 +37,17 @@ jobs:
 workflows:
   circleci:
     jobs:
-      - lint
+      - lint:
+          filters:
+            tags:
+              only: /^\d+\.\d+$/
       - test:
           filters:
             tags:
               only: /^\d+\.\d+$/
       - release:
           requires:
+            - lint
             - test
           filters:
             tags:
