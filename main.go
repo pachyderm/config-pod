@@ -23,7 +23,6 @@ const (
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
 	authConfigPath            = "authConfig"
-	authPath                  = "auth"
 )
 
 // the 1st client represents the pachd instance that needs to register with an enterprise server represented by the 2nd argument ("ec")
