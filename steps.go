@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/pachyderm/pachyderm/v2/src/auth"
@@ -12,6 +13,7 @@ import (
 	"github.com/pachyderm/pachyderm/v2/src/pps"
 
 	"github.com/gogo/protobuf/proto"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -144,7 +146,7 @@ func updateOrCreateIDP(ec *client.APIClient, connector identity.IDPConnector, ex
 		if ex.Id == connector.Id {
 			connector.ConfigVersion = ex.ConfigVersion
 			if proto.Equal(ex, &connector) {
-				return nil
+				return errSkipped
 			}
 
 			// If we are updating the connector, increment the version
@@ -172,7 +174,12 @@ func idpsStep(_ *client.APIClient, ec *client.APIClient) error {
 	}
 
 	for _, connector := range connectors {
-		updateOrCreateIDP(ec, connector, existing.Connectors)
+		if err := updateOrCreateIDP(ec, connector, existing.Connectors); err != nil {
+			if !errors.Is(err, errSkipped) {
+				return err
+			}
+			log.Warnf("skipped connector %q (it is unchanged)", connector.Id)
+		}
 	}
 
 	return nil

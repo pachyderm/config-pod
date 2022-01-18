@@ -5,8 +5,9 @@ go 1.15
 require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/jackc/pgx/v4 v4.13.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
-	github.com/pachyderm/pachyderm/v2 v2.0.0-proxy.1.0.20210920125805-e15847c0076a
+	github.com/pachyderm/pachyderm/v2 v2.0.5
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect

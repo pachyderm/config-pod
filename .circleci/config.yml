@@ -1,6 +1,15 @@
 version: 2.1
 
 jobs:
+  lint:
+    docker:
+      - image: golangci/golangci-lint:v1.43.0
+    steps: # steps that comprise the `build` job
+      - checkout # check out source code to working directory
+      - run:
+          name: run lint
+          command: golangci-lint run --timeout 10m
+
   test:
     resource_class: large
     machine:
@@ -28,6 +37,7 @@ jobs:
 workflows:
   circleci:
     jobs:
+      - lint
       - test:
           filters:
             tags:

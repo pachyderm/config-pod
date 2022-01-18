@@ -23,7 +23,6 @@ const (
 	idpsPath                  = "idps"
 	oidcClientsPath           = "oidcClients"
 	authConfigPath            = "authConfig"
-	authPath                  = "auth"
 )
 
 // the 1st client represents the pachd instance that needs to register with an enterprise server represented by the 2nd argument ("ec")
@@ -102,7 +101,9 @@ func main() {
 				stepLogger.WithError(err).Error("error syncing cluster state")
 				os.Exit(1)
 			}
-			stepLogger.WithField("reason", err).Info("skipped")
+			stepLogger.WithField("reason", err).Warn("skipped")
+		} else {
+			stepLogger.Info("success")
 		}
 	}
 }

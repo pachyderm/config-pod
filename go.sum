@@ -849,6 +849,8 @@ github.com/pachyderm/ohmyglob v0.0.0-20210308211843-d5b47775fc36 h1:BYlMmKAikMso
 github.com/pachyderm/ohmyglob v0.0.0-20210308211843-d5b47775fc36/go.mod h1:zTTB59W9i3MPZor62iS6A5hL1rbPCKDLPo/CetUPLuQ=
 github.com/pachyderm/pachyderm/v2 v2.0.0-proxy.1.0.20210920125805-e15847c0076a h1:n6Uw5FflRvxHZpz7wiziexQZqYRJpBFj3vRFVz+T1os=
 github.com/pachyderm/pachyderm/v2 v2.0.0-proxy.1.0.20210920125805-e15847c0076a/go.mod h1:pSA1DEQdI6TWZ/njPFjTEFF30cgnRHH+w1+mHvuIW+Q=
+github.com/pachyderm/pachyderm/v2 v2.0.5 h1:d3rjB9HZkZgKNvWLbDmi1V/9YTAXGhBaNiZbuc59a24=
+github.com/pachyderm/pachyderm/v2 v2.0.5/go.mod h1:ibpkiA/VYFtvruhsnJK+vPQpyHaojBrhCRXu0VHSZEA=
 github.com/pachyderm/s2 v0.0.0-20190725181334-d1f4a476d240/go.mod h1:ElO4u0RXSPaw9RGOyFafJ9GzaWS1bteLwywxyduiGNU=
 github.com/pachyderm/s2 v0.0.0-20200609183354-d52f35094520/go.mod h1:+bgy+pTTvgUhcIKkb1Qj4kBFvsRvw0OOySSYmJHz/IQ=
 github.com/pachyderm/s2/examples/sql v0.0.0-20200528231500-590b33e3c716/go.mod h1:rDwxgIkpsabZLa85PCS2MwkFSl/HgmHfc5XHJKiPuiE=
