@@ -15,7 +15,8 @@ jobs:
             if [[ ! -e /usr/local/bin/golangci-lint ]]; then
               cd /usr/local
               curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-                | sh -s v1.40.1
+                | sudo sh -s v1.40.1
+              sudo chmod 755 ./bin/golangci-lint
             fi
       - save_cache:
           paths:
